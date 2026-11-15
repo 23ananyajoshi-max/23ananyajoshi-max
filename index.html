@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Telehealth Diagnosis</title>
+    <style>
+      :root {
+        --bg: #f4f7fb;
+        --card: #ffffff;
+        --primary: #1f6feb;
+        --primary-dark: #164da8;
+        --text: #1f2937;
+        --muted: #6b7280;
+        --success: #1e7f4d;
+        --warning: #b7791f;
+        --danger: #b42318;
+        --border: #dfe7f1;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        background: linear-gradient(135deg, #eef4ff, #f9fbff);
+        color: var(--text);
+      }
+
+      .container {
+        max-width: 980px;
+        margin: 48px auto;
+        padding: 20px;
+      }
+
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: 0 10px 30px rgba(31, 111, 235, 0.08);
+        padding: 28px;
+      }
+
+      h1 {
+        margin-top: 0;
+        margin-bottom: 8px;
+        font-size: 2.1rem;
+      }
+
+      .subtitle {
+        color: var(--muted);
+        margin-bottom: 24px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 24px;
+      }
+
+      label {
+        display: block;
+        font-weight: 700;
+        margin-bottom: 8px;
+      }
+
+      textarea,
+      input {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px 14px;
+        font-size: 1rem;
+      }
+
+      textarea {
+        min-height: 140px;
+        resize: vertical;
+      }
+
+      button {
+        margin-top: 12px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 12px 18px;
+        font-size: 1rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background 0.2s ease;
+      }
+
+      button:hover {
+        background: var(--primary-dark);
+      }
+
+      .result-box,
+      .call-box {
+        margin-top: 28px;
+        background: #f8fafc;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 18px;
+      }
+
+      .status {
+        display: inline-block;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-weight: 700;
+        margin-bottom: 12px;
+      }
+
+      .status.low { background: #dcfce7; color: var(--success); }
+      .status.medium { background: #fef3c7; color: var(--warning); }
+      .status.high { background: #fee2e2; color: var(--danger); }
+
+      ul {
+        margin: 8px 0 0 18px;
+        padding: 0;
+        line-height: 1.7;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .hidden {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <h1>Telehealth Diagnosis</h1>
+        <p class="subtitle">Enter patient symptoms to check possible conditions and urgency.</p>
+
+        <div class="grid">
+          <div>
+            <label for="symptoms">Symptoms</label>
+            <textarea id="symptoms" placeholder="Example: fever, cough, dizziness"></textarea>
+            <button id="diagnoseBtn">Diagnose</button>
+          </div>
+
+          <div>
+            <label for="patientId">Patient ID</label>
+            <input id="patientId" type="text" value="P-1001" />
+
+            <label for="doctorId" style="margin-top: 16px;">Doctor ID</label>
+            <input id="doctorId" type="text" value="D-204" />
+            <button id="callBtn" type="button">Connect Doctor</button>
+          </div>
+        </div>
+
+        <div id="resultBox" class="result-box hidden">
+          <div id="urgencyBadge" class="status">Status</div>
+          <h3>Possible conditions</h3>
+          <ul id="conditionsList"></ul>
+
+          <h3 style="margin-top: 18px;">Recommended tests</h3>
+          <ul id="testsList"></ul>
+        </div>
+
+        <div id="callBox" class="call-box hidden">
+          <h3>Call connection</h3>
+          <div id="callStatus" class="muted"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const apiBase = "http://localhost:8080/api/v1";
+
+      document.getElementById("diagnoseBtn").addEventListener("click", async () => {
+        const rawSymptoms = document.getElementById("symptoms").value;
+        const symptoms = rawSymptoms
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+        if (!symptoms.length) {
+          alert("Please enter at least one symptom.");
+          return;
+        }
+
+        try {
+          const response = await fetch(`${apiBase}/diagnose`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ symptoms })
+          });
+
+          const data = await response.json();
+
+          const conditions = data.possibleConditions || [];
+          const tests = data.requiredTests || [];
+          const urgency = (data.urgencyLevel || "Low").toLowerCase();
+
+          document.getElementById("resultBox").classList.remove("hidden");
+          const badge = document.getElementById("urgencyBadge");
+          badge.textContent = `Urgency: ${data.urgencyLevel || "Low"}`;
+          badge.className = `status ${urgency}`;
+
+          const conditionList = document.getElementById("conditionsList");
+          conditionList.innerHTML = "";
+          (conditions.length ? conditions : ["No matching condition found"]).forEach((item) => {
+            const li = document.createElement("li");
+            li.textContent = item;
+            conditionList.appendChild(li);
+          });
+
+          const testsList = document.getElementById("testsList");
+          testsList.innerHTML = "";
+          (tests.length ? tests : ["No tests recommended"]).forEach((item) => {
+            const li = document.createElement("li");
+            li.textContent = item;
+            testsList.appendChild(li);
+          });
+        } catch (error) {
+          alert("The server could not be reached. Start the Spring Boot application on port 8080.");
+          console.error(error);
+        }
+      });
+
+      document.getElementById("callBtn").addEventListener("click", async () => {
+        const patientId = document.getElementById("patientId").value;
+        const doctorId = document.getElementById("doctorId").value;
+
+        try {
+          const response = await fetch(`${apiBase}/consultations/call`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ patientId, doctorId })
+          });
+
+          const data = await response.json();
+          document.getElementById("callBox").classList.remove("hidden");
+          document.getElementById("callStatus").innerHTML = `
+            <strong>Status:</strong> ${data.status}<br />
+            <strong>Bridge ID:</strong> ${data.bridgeId}
+          `;
+        } catch (error) {
+          alert("Could not connect the call. Make sure the backend is running.");
+          console.error(error);
+        }
+      });
+    </script>
+  </body>
+</html>
